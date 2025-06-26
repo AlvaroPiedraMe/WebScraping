@@ -1,0 +1,28 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Archivos de PyCharm
+.idea/
+*.iml
+*.iws
+__pycache__/
+.pytest_cache/
+
+# Archivos de logs
+*.log
+logs/
+
+# Archivos temporales
+*.tmp
+*.temp
+temp/
+
+# Archivos de datos sensibles (si los hubiera)
+.env
+config.ini
+secrets.json
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
