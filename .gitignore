@@ -1,28 +1,47 @@
-# Entorno virtual
-venv/
+# Archivos de entorno virtual Python
 .venv/
-
-# Archivos de PyCharm
-.idea/
-*.iml
-*.iws
+venv/
+env/
+*.pyc
 __pycache__/
 .pytest_cache/
 
-# Archivos de logs
+# Dependencias instaladas por pip (no subir la carpeta site-packages)
+*.egg-info/
+build/
+dist/
+
+# Archivos específicos de Playwright
+# No subir los navegadores descargados por Playwright (son grandes)
+# Estas carpetas suelen estar en la raíz de tu proyecto o en el directorio de usuario.
+# Si los navegadores están en tu proyecto, estarán en .venv/ms-playwright
+# Si están globales, suelen ir a ~/AppData/Local/ms-playwright/
+# Si no estás seguro, Playwright los instala en un directorio específico que no debe versionarse.
+# Busca una carpeta llamada .ms-playwright o ms-playwright dentro de tu venv o en AppData/Local.
+# Para la mayoría de los casos, la siguiente línea NO es necesaria si los navegadores están en la carpeta del venv,
+# porque .venv/ ya está ignorada. Pero si los Playwright instaló en otro lugar del proyecto:
+# ms-playwright/
+
+# Archivos específicos de PyCharm
+.idea/
+*.iml
+*.iws
+
+# Archivos de configuración y logs
+.env  # Para variables de entorno sensibles
+.flaskenv
 *.log
 logs/
+.DS_Store # macOS specific
+Thumbs.db # Windows specific
 
-# Archivos temporales
-*.tmp
-*.temp
-temp/
+# Archivos específicos del sistema operativo
+*.exe
+*.dll
+*.so
+*.dylib
 
-# Archivos de datos sensibles (si los hubiera)
-.env
-config.ini
-secrets.json
-
-# Archivos de sistema operativo
-.DS_Store
-Thumbs.db
+# Archivos de base de datos
+*.db
+*.sqlite
+/db.sqlite3 # Si usas Django
