@@ -32,12 +32,13 @@ class WallapopScraper:
             logger.error(f"Error al navegar a {url}: {e}", exc_info=True)
             raise
 
-    def scrape_furgonetas_gijon(self, item_name: str = "Furgonetas", location: str = "Gijon"):
+    def scrape_furgonetas_espana(self, item_name: str = "Furgonetas"):
         """
         Navega a Wallapop, realiza la secuencia de acciones generada por codegen:
         acepta cookies, selecciona categoría 'Coches', busca 'Furgonetas' y filtra por 'Gijón'.
         """
-        scraped_results = []
+        # Esta lista almacenará solo las tuplas (título, URL)
+        titles_and_urls = []
 
         with sync_playwright() as p:
             browser = None
@@ -77,7 +78,7 @@ class WallapopScraper:
                 time.sleep(4)
 
 
-                # Filtrar por Ubicación
+                # --- Logica filtrado de Ubicacion: España ---
                 logger.info("Haciendo clic en el botón 'Cambiar' ubicación.")
                 change_location_button = page.get_by_role("button", name="Cambiar")
                 expect(change_location_button).to_be_visible(timeout=10000)
@@ -89,123 +90,97 @@ class WallapopScraper:
                 expect(location_searchbox).to_be_visible(timeout=5000)
                 location_searchbox.click()
 
-                logger.info(f"Escribiendo '{location}' en el campo de ubicación.")
-                location_searchbox.fill(location)
-
-                logger.info(f"Seleccionando 'Gijón, Asturias, Principado de Asturias, ESP'.")
-                page.get_by_text("Gijón, Asturias, Principado de Asturias, ESP", exact=True).click()
+                logger.info("Configurando la ubicación para 'España'")
+                location_searchbox.fill("España")
+                # Esperar y hacer clic en la sugerencia "España"
+                espana_suggestion = page.get_by_text("España", exact=True)
+                expect(espana_suggestion).to_be_visible(timeout=10000)
+                espana_suggestion.click()
                 time.sleep(1)
 
                 logger.info("Haciendo clic en el botón 'Aplicar' filtro de ubicación.")
                 page.get_by_role("button", name="Aplicar").click()
+                time.sleep(1)
 
-                time.sleep(3)
 
-                # --- Extraer la información de los anuncios ---
-                logger.info("Extrayendo detalles de los anuncios...")
+                # --- Extraer URLs y Títulos de los anuncios de la lista ---
+                logger.info("Extrayendo títulos y URLs de los anuncios de la página de lista...")
 
-                # Selector del contenedor de cada anuncio individual
-                # Usamos el <a> que es el contenedor principal del HTML proporcionado
                 ad_containers_selector = 'a.item-card_ItemCard--horizontal__zLpZu'
 
                 try:
-                    # Espera a que al menos UN elemento que coincida con el selector sea visible
                     page.wait_for_selector(ad_containers_selector, state='visible', timeout=20000)
                     logger.info("Al menos un anuncio visible, procediendo a extraer todos.")
                 except Exception as e:
                     logger.warning(
-                        f"No se encontraron anuncios visibles con el selector '{ad_containers_selector}' después de 20s. Continuando, pero la lista de anuncios puede estar vacía. Error: {e}")
-                    # Si no hay anuncios visibles, ad_elements será una lista vacía, y el bucle for no se ejecutará.
-                    # Esto es un comportamiento deseado si no hay resultados.
+                        f"No se encontraron anuncios visibles con el selector '{ad_containers_selector}' después de 20s. La lista de anuncios puede estar vacía. Error: {e}")
+                    return []  # Salir si no hay anuncios que procesar.
 
                 ad_elements = page.locator(ad_containers_selector).all()
                 logger.info(f"Encontrados {len(ad_elements)} elementos con el selector '{ad_containers_selector}'.")
 
+                # Recolectar solo la tupla (título, URL)
                 for i, ad_element in enumerate(ad_elements):
                     try:
-                        # Extraer la URL del anuncio (del atributo href del contenedor principal <a>)
                         ad_url_suffix = ad_element.get_attribute('href')
+                        # Asegúrate de que la URL sea completa
                         full_ad_url = f"https://es.wallapop.com{ad_url_suffix}" if ad_url_suffix else "N/A"
 
-                        # Extraer título
-                        # Selector: h3.item-card_ItemCard__title__8eq2b
                         title_element = ad_element.locator('h3.item-card_ItemCard__title__8eq2b')
                         title = title_element.text_content().strip() if title_element else "N/A"
 
-                        # Extraer precio
-                        # Selector: strong.item-card_ItemCard__price__D3QWU
-                        price_element = ad_element.locator('strong.item-card_ItemCard__price__D3QWU')
-                        price = price_element.text_content().strip().replace('\xa0€',
-                                                                             ' €') if price_element else "N/A"  # Reemplazar el espacio no-breaking por uno normal
-
-                        # Extraer atributos (año, km, etc.)
-                        # Selector: label.item-card_ItemCard__attributes__YhG0G
-                        attributes_element = ad_element.locator('label.item-card_ItemCard__attributes__YhG0G')
-                        attributes = attributes_element.text_content().strip() if attributes_element else "N/A"
-
-                        # Extraer descripción
-                        # Selector: p.item-card_ItemCard__description__qBkRh
-                        description_element = ad_element.locator('p.item-card_ItemCard__description__qBkRh')
-                        description = description_element.text_content().strip() if description_element else "N/A"
-
-                        # (Opcional) Puedes parsear los atributos aquí mismo si quieres:
-                        year = km = fuel = cv = "N/A"
-                        if attributes != "N/A":
-                            attr_parts = attributes.split('·')
-                            if len(attr_parts) > 0: year = attr_parts[0].strip()
-                            if len(attr_parts) > 1: km = attr_parts[1].strip()
-                            if len(attr_parts) > 2: fuel = attr_parts[2].strip()
-                            if len(attr_parts) > 3: cv = attr_parts[3].strip()
-
-                        scraped_results.append({
-                            "title": title,
-                            "price": price,
-                            "url": full_ad_url,
-                            "attributes": attributes,  # O los campos parseados individualmente
-                            "year": year,
-                            "km": km,
-                            "fuel": fuel,
-                            "cv": cv,
-                            "description": description
-                        })
-                        logger.debug(f"Anuncio {i + 1} extraído: {title}, {price}, {full_ad_url}")
+                        # Añadir la tupla (título, URL) a la lista
+                        if title != "N/A" and full_ad_url != "N/A":
+                            titles_and_urls.append((title, full_ad_url))
+                            logger.debug(f"Anuncio {i + 1} extraído: ('{title}', '{full_ad_url}')")
+                        else:
+                            logger.warning(f"Título o URL no encontrados para el anuncio {i + 1}. Saltando.")
 
                     except Exception as e:
-                        logger.warning(f"Error al extraer datos del anuncio {i + 1}: {e}", exc_info=True)
-                        scraped_results.append({"error": f"Error en anuncio {i + 1}: {e}"})
+                        logger.warning(f"Error al extraer título/URL del anuncio {i + 1}: {e}", exc_info=True)
 
-                logger.info(f"Total de anuncios procesados: {len(scraped_results)}")
+                logger.info(f"Total de títulos y URLs recolectados: {len(titles_and_urls)}")
+
+                # --- FIN DE LA ETAPA 1 ---
+                # Se ha eliminado toda la lógica de la ETAPA 2 para la extracción de detalles.
 
             except Exception as e:
                 logger.critical(f"Fallo crítico durante el scraping de Wallapop: {e}", exc_info=True)
-                scraped_results = [{"error": f"Fallo crítico: {e}"}]
+                # En caso de fallo crítico, devolver una lista vacía o con un error.
+                return [("Error crítico", str(e))]
             finally:
                 if browser:
                     browser.close()
                     logger.info("Navegador cerrado.")
 
-        return scraped_results
+        return titles_and_urls
 
 
 # Este bloque se ejecuta solo si el script se corre directamente
 if __name__ == "__main__":
-    print("--- Iniciando Wallapop Scraper con Búsqueda y Ubicación ---")
-    scraper = WallapopScraper()  # La URL base ya está definida en el constructor
+    print("--- Iniciando Wallapop Scraper con Búsqueda en Toda España (Solo Títulos y URLs) ---")
+    scraper = WallapopScraper()
 
     item_to_search = "Furgonetas"
-    # El texto de la ubicación debe coincidir con el texto exacto que Playwright buscará en la UI
-    location_to_filter = "Gijon"  # Se usará para escribir en el campo
 
-    results = scraper.scrape_furgonetas_gijon(item_name=item_to_search, location=location_to_filter)
+    # ¡CORRECCIÓN AQUÍ! Llamando a la función correcta y sin el parámetro location
+    results_list = scraper.scrape_furgonetas_espana(item_name=item_to_search)
 
-    if results and not any("error" in res for res in results):  # Comprueba si hay errores en cualquier resultado
-        print(f"\n--- Resultados de búsqueda para '{item_to_search}' en '{location_to_filter}' ---")
-        for i, item in enumerate(results):
-            print(f"{i + 1}. Título: {item['title']}")
-        print(f"\nSe encontraron {len(results)} anuncios.")
+    if results_list and not any("Error" in t for t, u in results_list):  # Comprueba si hay errores en las tuplas
+        print(f"\n--- Resultados de búsqueda para '{item_to_search}' en TODA ESPAÑA (Títulos y URLs) ---")
+        # ¡CORRECCIÓN AQUÍ! Desempaquetando la tupla directamente en el bucle
+        for i, (title, url) in enumerate(results_list[:10]):  # Mostrar solo los primeros 10 para un resumen
+            print(f"{i + 1}. Título: {title}")
+            print(f"   URL: {url}")
+        if len(results_list) > 10:
+            print(f"\n... (Mostrando los primeros 10 de {len(results_list)} tuplas totales)")
+        else:
+            print(f"\nSe encontraron {len(results_list)} tuplas de título y URL.")
     else:
-        print(f"\n--- No se pudieron obtener resultados para '{item_to_search}' en '{location_to_filter}' ---")
-        if results and any("error" in res for res in results):
-            for res in results:
-                if "error" in res:
-                    print(f"Error: {res['error']}")
+        print(f"\n--- No se pudieron obtener resultados para '{item_to_search}' en TODA ESPAÑA ---")
+        if results_list and any("Error" in t for t, u in results_list):
+            for title_or_error, url_or_message in results_list:
+                if "Error" in title_or_error:
+                    print(f"Error: {url_or_message}")  # La URL contendrá el mensaje de error en este caso
+        else:
+            print("No se encontraron anuncios o hubo un problema desconocido.")

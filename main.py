@@ -8,39 +8,40 @@ logger = logging.getLogger(__name__)
 
 def run_wallapop_scraper():
     """
-    Función principal para ejecutar el scraper de Wallapop.
+    Función principal para ejecutar el scraper de Wallapop, buscando siempre en España.
     """
     logger.info("Iniciando la aplicación de scraping de Wallapop...")
 
-    # Instancia de tu scraper
-    # La base_url y los parámetros de búsqueda/ubicación están ya predefinidos en la clase
-    # pero puedes pasarlos aquí si quieres hacerlos configurables desde main.py
     scraper = WallapopScraper()
 
     try:
-        # Llama al metodo que ejecuta la secuencia de scraping
-        # Los valores por defecto de "Furgonetas" y "Gijon" se usarán si no se pasan
-        # Si quieres cambiarlos, puedes hacerlo aquí:
-        # scraped_data = scraper.scrape_furgonetas_gijon(item_name="Coches", location="Madrid")
-        scraped_data = scraper.scrape_furgonetas_gijon()
+        item_to_search = "Furgonetas"
+        # Ahora la función asume que la búsqueda es en España, no se necesita pasar 'location'
+        # scraped_data ahora será una lista de tuplas (título, url)
+        scraped_data = scraper.scrape_furgonetas_espana(item_name=item_to_search)
 
         logger.info("Scraping de Wallapop completado.")
 
-        # Imprimir los resultados
-        if scraped_data and not any("error" in res for res in scraped_data):
-            print("\n--- RESUMEN DE RESULTADOS DE WALLAPOP ---")
+        # --- CAMBIOS CRÍTICOS AQUÍ PARA MANEJAR LAS TUPLAS ---
+        # El any() también debe ser ajustado si los errores vienen como tuplas ("Error crítico", "mensaje")
+        if scraped_data and not any("Error" in t for t, u in scraped_data):
+            print(f"\n--- RESUMEN DE RESULTADOS DE WALLAPOP para '{item_to_search}' en TODA ESPAÑA ---")
+            # El conteo ahora es de tuplas (títulos/URLs)
             print(f"Número total de anuncios encontrados: {len(scraped_data)}")
-            print("\nPrimeros 10 títulos de anuncios:")
-            for i, item in enumerate(scraped_data[:10]):
-                print(f"  {i + 1}. {item['title']}")
+            print("\nPrimeros 10 títulos y URLs:")
+            # Aquí es donde se desempaqueta la tupla (title, url)
+            for i, (title, url) in enumerate(scraped_data[:10]):
+                print(f"  {i + 1}. Título: {title}")
+                print(f"     URL: {url}") # También puedes imprimir la URL aquí si lo deseas
             if len(scraped_data) > 10:
                 print(f"  ...y {len(scraped_data) - 10} más.")
         else:
             print("\n--- NO SE PUDIERON OBTENER RESULTADOS ---")
-            if scraped_data and any("error" in res for res in scraped_data):
-                for res in scraped_data:
-                    if "error" in res:
-                        print(f"Error detallado: {res['error']}")
+            # Ajuste en la lógica de errores para tuplas si se devuelve ("Error crítico", "mensaje")
+            if scraped_data and any("Error" in t for t, u in scraped_data):
+                for t_or_err, u_or_msg in scraped_data: # Desempaqueta también aquí
+                    if "Error" in t_or_err:
+                        print(f"Error detallado: {u_or_msg}") # El mensaje de error estará en la segunda parte de la tupla
             else:
                 print("No se encontraron anuncios o hubo un problema desconocido.")
 
